@@ -2,8 +2,6 @@ import server from "./App.js";
 import { Server } from "socket.io";
 import RoomData from "./RoomData.js";
 
-import { Server } from "socket.io";
-
 const io = new Server(server, {
     cors: {
         origin: "https://room-chat-fronted.onrender.com",
