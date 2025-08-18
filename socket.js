@@ -3,7 +3,7 @@ import { Server } from "socket.io";
 import RoomData from "./RoomData.js";
 
 const io = new Server(server, {
-    cors: { origin: "https://your-frontend-domain.com" }, // replace with frontend
+    cors: { origin: "*" }, // replace with frontend
 });
 
 // Map socket.id → { RoomId, Username } for tracking users
