@@ -7,7 +7,10 @@ const app = express();
 const server = http.createServer(app);
 
 // middleware 
-app.use(cors());
+app.use(cors(
+  origin: "https://room-chat-fronted.onrender.com",
+  methods: ["GET", "POST"],
+));
 app.use(express.json());
 
 
