@@ -42,9 +42,11 @@ io.on("connection", (socket) => {
     });
 
     // leave room
-    socket.on("leave", (username, roomId) => {
-        socket.broadcast.to(roomId).emit("leave", username);
-    })
+    socket.on("userLeave", (username, roomId) => {
+        socket.leave(roomId);
+        socket.broadcast.to(roomId).emit("userLeave", username);
+    });
+
 
     // Optional: handle disconnect
     socket.on("disconnect", () => {
