@@ -8,7 +8,7 @@ const server = http.createServer(app);
 
 // Socket.IO server with CORS enabled
 const io = new Server(server, {
-    cors: { origin: "*" }
+    cors: { origin: "https://room-chat-fronted.onrender.com" }
 });
 
 // ---------------- MIDDLEWARE ----------------
