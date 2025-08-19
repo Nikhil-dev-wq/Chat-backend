@@ -2,6 +2,9 @@ import express from "express";
 import http from "http";
 import { Server } from "socket.io";
 
+// DATABASE SETUP
+let roomData = {}
+
 // ---------------- SETUP SERVER ----------------
 const app = express();
 const server = http.createServer(app);
@@ -20,18 +23,47 @@ io.on("connection", (socket) => {
 
     // Join room
     socket.on("joinRoom", (roomId, username) => {
-        socket.join(roomId);
+        if (!roomData[roomId]) {
+            roomData[roomId] = { users: [], messages: [] }
+        }
+
         console.log(`${username} has joined room ${roomId}`);
+        // Pushing newuser to database
+        if (roomData[roomId].users.includes(username)) {
+
+            socket.emit("error", "User Already Exit");
+            return;
+        }
+
+        if (!roomData[roomId].users.includes(username)) {
+            roomData[roomId]["users"].push(username);
+        }
+
+        socket.join(roomId);
 
         // Notify the user that they joined
-        socket.emit("joinedRoom", roomId, username);
+        socket.emit("joinedRoom", roomId, username, roomData[roomId]);
 
         // Notify other users in the room
         socket.to(roomId).emit("userJoin", username);
+
     });
+
+    // online
+    socket.on("online", (username, roomId) => {
+        socket.data.username = username; 
+        socket.data.roomId = roomId;
+        socket.join(roomId);
+        socket.emit("roomData", roomData[roomId]);
+        socket.broadcast.to(roomId).emit("online", username);
+    });
+
+
 
     // Handle messages
     socket.on("messages", (username, message, roomId) => {
+        // Pushing data to roomData
+        roomData[roomId].messages.push({ name: username, message: message })
         // Broadcast to everyone else in the room
         socket.broadcast.to(roomId).emit("messages", username, message);
     });
@@ -44,19 +76,22 @@ io.on("connection", (socket) => {
     // leave room
     socket.on("userLeave", (username, roomId) => {
         socket.leave(roomId);
+        roomData[roomId].users = roomData[roomId].users.filter(u => u !== username);
         socket.broadcast.to(roomId).emit("userLeave", username);
     });
 
-
-    // Optional: handle disconnect
+    // handle disconnect
     socket.on("disconnect", () => {
-        console.log("User disconnected:", socket.id);
+        if (socket.data.username && socket.data.roomId) {
+            socket.broadcast
+                .to(socket.data.roomId)
+                .emit("offline", socket.data.username);
+        }
     });
+
 });
 
 // ---------------- START SERVER ----------------
 const PORT = 5000;
-server.listen(PORT, () => {
-    console.log(`Server running on http://localhost:${PORT}`);
-});
+server.listen(PORT);
 
