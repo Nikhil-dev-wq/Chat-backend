@@ -1,88 +1,60 @@
-import server from "./App.js";
+import express from "express";
+import http from "http";
 import { Server } from "socket.io";
-import RoomData from "./RoomData.js";
 
+// ---------------- SETUP SERVER ----------------
+const app = express();
+const server = http.createServer(app);
+
+// Socket.IO server with CORS enabled
 const io = new Server(server, {
-    cors: {
-        origin: "https://room-chat-fronted.onrender.com",
-        methods: ["GET", "POST"]
-    }
+    cors: { origin: "*" }
 });
 
-// Map socket.id → { RoomId, Username } for tracking users
-const socketRoomMap = new Map();
+// ---------------- MIDDLEWARE ----------------
+app.use(express.json());
 
+// ---------------- SOCKET.IO CONNECTION ----------------
 io.on("connection", (socket) => {
-    console.log(`[CONNECT] User connected: ${socket.id}`);
+    console.log("User connected:", socket.id);
 
     // Join room
-    socket.on("joinRoom", (RoomId) => {
-        if (!RoomId) return;
+    socket.on("joinRoom", (roomId, username) => {
+        socket.join(roomId);
+        console.log(`${username} has joined room ${roomId}`);
 
-        if (!RoomData[RoomId]) {
-            RoomData[RoomId] = { RoomId, Messages: [], Users: [] };
-        }
+        // Notify the user that they joined
+        socket.emit("joinedRoom", roomId, username);
 
-        socket.join(RoomId);
-        socket.emit("messages", RoomData[RoomId].Messages);
-        console.log(`[ROOM] ${socket.id} joined room ${RoomId}`);
+        // Notify other users in the room
+        socket.to(roomId).emit("userJoin", username);
     });
 
-    // Add user
-    socket.on("userAdd", ({ RoomId, Username }) => {
-        if (!RoomId || !Username) return;
-
-        if (!RoomData[RoomId]) return;
-
-        if (!RoomData[RoomId].Users.includes(Username)) {
-            RoomData[RoomId].Users.push(Username);
-        }
-
-        socketRoomMap.set(socket.id, { RoomId, Username });
-
-        const userCount = RoomData[RoomId].Users.length;
-        io.to(RoomId).emit("usercount", userCount);
-
-        console.log(`[USER] ${Username} joined room ${RoomId} | Users: ${userCount}`);
+    // Handle messages
+    socket.on("messages", (username, message, roomId) => {
+        // Broadcast to everyone else in the room
+        socket.broadcast.to(roomId).emit("messages", username, message);
+    });
+    // Typing indicator
+    socket.on("typing", (username, roomId) => {
+        // Broadcast to everyone else in the room
+        socket.broadcast.to(roomId).emit("typing", username);
     });
 
-    // Receive messages
-    socket.on("messages", ({ RoomId, Username, Message }) => {
-        if (!RoomId || !Username || !Message) return;
+    // leave room
+    socket.on("leave", (username, roomId) => {
+        socket.broadcast.to(roomId).emit("leave", username);
+    })
 
-        if (!RoomData[RoomId]) {
-            socket.emit("errorMessage", `Room ${RoomId} does not exist!`);
-            return;
-        }
-
-        const msgData = { Username, Message, timestamp: new Date().toISOString() };
-        RoomData[RoomId].Messages.push(msgData);
-
-        io.to(RoomId).emit("messages", msgData);
-    });
-
-    // Disconnect
+    // Optional: handle disconnect
     socket.on("disconnect", () => {
-        console.log(`[DISCONNECT] User disconnected: ${socket.id}`);
-
-        const userData = socketRoomMap.get(socket.id);
-        if (userData) {
-            const { RoomId, Username } = userData;
-
-            if (RoomData[RoomId]) {
-                RoomData[RoomId].Users = RoomData[RoomId].Users.filter(u => u !== Username);
-                const userCount = RoomData[RoomId].Users.length;
-                io.to(RoomId).emit("usercount", userCount);
-            }
-
-            socketRoomMap.delete(socket.id);
-        }
+        console.log("User disconnected:", socket.id);
     });
 });
 
-// Start server
-const PORT = process.env.PORT || 8080;
+// ---------------- START SERVER ----------------
+const PORT = 5000;
 server.listen(PORT, () => {
-    console.log(`[SERVER] Running on port ${PORT}`);
+    console.log(`Server running on http://localhost:${PORT}`);
 });
 
